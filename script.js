@@ -7,6 +7,12 @@ const queryInput = document.getElementById('queryInput');
 const searchFeed = document.getElementById('searchFeed');
 const homeFeed = document.getElementById('homeFeed');
 
+// Feedback modal
+const feedbackModal = document.getElementById('feedbackModal');
+const feedbackText = document.getElementById('feedbackText');
+const thumbUp = document.getElementById('thumbUp');
+const thumbDown = document.getElementById('thumbDown');
+
 // ===== User Metrics =====
 const userMetrics = JSON.parse(localStorage.getItem('finderMetrics')) || {
   clicks: 0,
@@ -54,11 +60,11 @@ async function fetchDateFact() {
   }
 }
 
-// ===== Personalization Functions =====
-function updateMetrics(type, query, timeSpent = 0, definitionText='') {
-  userMetrics.clicks += 1;
+// ===== Personalization & Metrics =====
+function updateMetrics(type, query, timeSpent=0, definitionText=''){
+  userMetrics.clicks +=1;
   userMetrics.lastQuery = query;
-  userMetrics.typeEngagement[type] = (userMetrics.typeEngagement[type] || 0) + 1 + timeSpent/10;
+  userMetrics.typeEngagement[type] = (userMetrics.typeEngagement[type]||0) + 1 + timeSpent/10;
 
   if(!userMetrics.recentSearches.includes(query)){
     userMetrics.recentSearches.push(query);
@@ -67,7 +73,7 @@ function updateMetrics(type, query, timeSpent = 0, definitionText='') {
 
   if(definitionText){
     const words = definitionText.split(/\W+/);
-    words.forEach(w => {
+    words.forEach(w=>{
       const word = w.toLowerCase();
       if(!userMetrics.relatedWords[word]) userMetrics.relatedWords[word]=0;
       userMetrics.relatedWords[word]+=1;
@@ -76,32 +82,42 @@ function updateMetrics(type, query, timeSpent = 0, definitionText='') {
 
   const maxType = Object.entries(userMetrics.typeEngagement).sort((a,b)=>b[1]-a[1])[0][0];
   userMetrics.preferredType = maxType;
-
   localStorage.setItem('finderMetrics', JSON.stringify(userMetrics));
 }
 
-function getContentOrder() {
-  const typeScores = { ...userMetrics.typeEngagement };
-  userMetrics.feedback.forEach(f => { if(f.like) typeScores[f.type]+=5; });
+function getContentOrder(){
+  const typeScores = {...userMetrics.typeEngagement};
+  userMetrics.feedback.forEach(f=>{ if(f.like) typeScores[f.type]+=5; });
   return Object.entries(typeScores).sort((a,b)=>b[1]-a[1]).map(entry=>entry[0]);
 }
 
-function maybeAskFeedback(type){
-  if(userMetrics.clicks % 3 === 0){
-    setTimeout(()=>{
-      const like = confirm(`Did you enjoy the ${type}? Click OK for Yes, Cancel for No.`);
-      userMetrics.feedback.push({ type, like, timestamp: Date.now() });
-      localStorage.setItem('finderMetrics', JSON.stringify(userMetrics));
-    }, 500);
-  }
+// ===== Feedback Modal =====
+function showFeedbackModal(type, card){
+  feedbackText.innerText = `Did you like this ${type}?`;
+  feedbackModal.classList.remove('hidden');
+
+  thumbUp.onclick = ()=>{
+    userMetrics.feedback.push({type, like:true, timestamp:Date.now()});
+    feedbackModal.classList.add('hidden');
+    card.style.border='2px solid green';
+    localStorage.setItem('finderMetrics', JSON.stringify(userMetrics));
+  };
+
+  thumbDown.onclick = ()=>{
+    userMetrics.feedback.push({type, like:false, timestamp:Date.now()});
+    feedbackModal.classList.add('hidden');
+    card.style.border='2px solid red';
+    localStorage.setItem('finderMetrics', JSON.stringify(userMetrics));
+  };
 }
 
 // ===== Page Navigation =====
 homeBtn.addEventListener('click',()=>{
   homePage.style.display='block';
   searchPage.style.display='none';
-  displayHomeFeed();
+  displayFeed();
 });
+
 goSearchBtn.addEventListener('click',()=>{
   homePage.style.display='none';
   searchPage.style.display='block';
@@ -109,26 +125,37 @@ goSearchBtn.addEventListener('click',()=>{
 });
 
 // ===== Display Functions =====
-async function displayFeed(query) {
-  // Used for both home and search feed
+async function displayFeed(query=''){
   const feed = (searchPage.style.display==='block') ? searchFeed : homeFeed;
   feed.innerHTML='';
 
   const order = getContentOrder();
+  const cardsToShow = 5;
 
-  // Show multiple cards (like home feed)
-  const cardsToShow = 5; 
   for(let i=0;i<cardsToShow;i++){
     const type = order[i%order.length];
     let content='';
-
     if(type==='definition') content = query ? await fetchDefinition(query) : await fetchDefinition('example');
     if(type==='funFact') content = await fetchFunFact();
     if(type==='dateFact') content = await fetchDateFact();
 
     const card = document.createElement('div');
     card.className='card';
-    card.innerText = `${type.toUpperCase()}:\n${content}`;
+    card.innerHTML = `<p><strong>${type.toUpperCase()}:</strong> ${content}</p>`;
+    
+    // Add thumbs buttons to card
+    const thumbs = document.createElement('div');
+    thumbs.className='thumbs';
+    const up = document.createElement('button');
+    up.innerText='👍';
+    up.onclick = ()=>showFeedbackModal(type, card);
+    const down = document.createElement('button');
+    down.innerText='👎';
+    down.onclick = ()=>showFeedbackModal(type, card);
+    thumbs.appendChild(up);
+    thumbs.appendChild(down);
+    card.appendChild(thumbs);
+
     feed.appendChild(card);
 
     const startTime = Date.now();
@@ -139,7 +166,6 @@ async function displayFeed(query) {
     });
 
     updateMetrics(type, query||'example',0, content);
-    maybeAskFeedback(type);
   }
 
   if(query) recommendRelated(query, feed);
@@ -152,11 +178,11 @@ function recommendRelated(query, feed){
     .map(e=>e[0])
     .filter(w=>w!==query.toLowerCase())
     .slice(0,3);
-  
+
   if(sortedRelated.length>0){
     const recCard = document.createElement('div');
     recCard.className='card';
-    recCard.innerHTML=`RECOMMENDED RELATED WORDS: <br>${sortedRelated.join(', ')}`;
+    recCard.innerHTML=`<strong>Recommended Related Words:</strong> <br>${sortedRelated.join(', ')}`;
     feed.appendChild(recCard);
   }
 }
