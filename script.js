@@ -24,12 +24,12 @@ const userMetrics = JSON.parse(localStorage.getItem('finderMetrics')) || {
   relatedWords: {}
 };
 
-// ===== Helper Functions =====
+// ===== Fetch Functions =====
 async function fetchDefinition(word) {
   try {
     const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
     const data = await res.json();
-    if (data[0]) return data[0].meanings.map(m => `${m.partOfSpeech}: ${m.definitions[0].definition}`).join(' | ');
+    if(data[0]) return data[0].meanings.map(m => `${m.partOfSpeech}: ${m.definitions[0].definition}`).join(' | ');
     return 'No definition found.';
   } catch { return 'Error fetching definition.'; }
 }
@@ -45,24 +45,24 @@ async function fetchFunFact() {
 async function fetchDateFact() {
   try {
     const today = new Date();
-    const month = today.getMonth() + 1;
+    const month = today.getMonth()+1;
     const day = today.getDate();
     const res = await fetch(`https://numbersapi.com/${month}/${day}/date?json`);
     const data = await res.json();
     return data.text;
   } catch {
-    const fallbackFacts = [
+    const fallback = [
       "On this day, something amazing happened in history!",
       "Did you know? Today has a fun fact waiting for you.",
       "This day in history was pretty cool!"
     ];
-    return fallbackFacts[Math.floor(Math.random() * fallbackFacts.length)];
+    return fallback[Math.floor(Math.random()*fallback.length)];
   }
 }
 
 // ===== Personalization & Metrics =====
-function updateMetrics(type, query, timeSpent=0, definitionText=''){
-  userMetrics.clicks +=1;
+function updateMetrics(type, query, timeSpent=0, definitionText='') {
+  userMetrics.clicks += 1;
   userMetrics.lastQuery = query;
   userMetrics.typeEngagement[type] = (userMetrics.typeEngagement[type]||0) + 1 + timeSpent/10;
 
@@ -92,24 +92,31 @@ function getContentOrder(){
 }
 
 // ===== Feedback Modal =====
-function showFeedbackModal(type, card){
-  feedbackText.innerText = `Did you like this ${type}?`;
+let currentCardForFeedback=null;
+function showFeedbackModal(card){
   feedbackModal.classList.remove('hidden');
-
-  thumbUp.onclick = ()=>{
-    userMetrics.feedback.push({type, like:true, timestamp:Date.now()});
-    feedbackModal.classList.add('hidden');
-    card.style.border='2px solid green';
-    localStorage.setItem('finderMetrics', JSON.stringify(userMetrics));
-  };
-
-  thumbDown.onclick = ()=>{
-    userMetrics.feedback.push({type, like:false, timestamp:Date.now()});
-    feedbackModal.classList.add('hidden');
-    card.style.border='2px solid red';
-    localStorage.setItem('finderMetrics', JSON.stringify(userMetrics));
-  };
+  currentCardForFeedback = card;
 }
+
+thumbUp.onclick = ()=>{
+  if(!currentCardForFeedback) return;
+  const type = currentCardForFeedback.dataset.type;
+  userMetrics.feedback.push({type, like:true, timestamp:Date.now()});
+  currentCardForFeedback.style.border='2px solid green';
+  feedbackModal.classList.add('hidden');
+  currentCardForFeedback=null;
+  localStorage.setItem('finderMetrics', JSON.stringify(userMetrics));
+};
+
+thumbDown.onclick = ()=>{
+  if(!currentCardForFeedback) return;
+  const type = currentCardForFeedback.dataset.type;
+  userMetrics.feedback.push({type, like:false, timestamp:Date.now()});
+  currentCardForFeedback.style.border='2px solid red';
+  feedbackModal.classList.add('hidden');
+  currentCardForFeedback=null;
+  localStorage.setItem('finderMetrics', JSON.stringify(userMetrics));
+};
 
 // ===== Page Navigation =====
 homeBtn.addEventListener('click',()=>{
@@ -130,30 +137,29 @@ async function displayFeed(query=''){
   feed.innerHTML='';
 
   const order = getContentOrder();
-  const cardsToShow = 5;
+  const cardsToShow = (searchPage.style.display==='block') ? 5 : 5;
 
   for(let i=0;i<cardsToShow;i++){
     const type = order[i%order.length];
     let content='';
-    if(type==='definition') content = query ? await fetchDefinition(query) : await fetchDefinition('example');
+    if(type==='definition' && query) content = await fetchDefinition(query);
+    else if(type==='definition') content = await fetchDefinition('example');
     if(type==='funFact') content = await fetchFunFact();
     if(type==='dateFact') content = await fetchDateFact();
 
     const card = document.createElement('div');
     card.className='card';
+    card.dataset.type=type;
     card.innerHTML = `<p><strong>${type.toUpperCase()}:</strong> ${content}</p>`;
-    
-    // Add thumbs buttons to card
+
+    // Thumbs only on content cards
     const thumbs = document.createElement('div');
     thumbs.className='thumbs';
-    const up = document.createElement('button');
-    up.innerText='👍';
-    up.onclick = ()=>showFeedbackModal(type, card);
-    const down = document.createElement('button');
-    down.innerText='👎';
-    down.onclick = ()=>showFeedbackModal(type, card);
-    thumbs.appendChild(up);
-    thumbs.appendChild(down);
+    const up = document.createElement('button'); up.innerText='👍';
+    const down = document.createElement('button'); down.innerText='👎';
+    up.onclick = ()=>showFeedbackModal(card);
+    down.onclick = ()=>showFeedbackModal(card);
+    thumbs.appendChild(up); thumbs.appendChild(down);
     card.appendChild(thumbs);
 
     feed.appendChild(card);
@@ -182,7 +188,7 @@ function recommendRelated(query, feed){
   if(sortedRelated.length>0){
     const recCard = document.createElement('div');
     recCard.className='card';
-    recCard.innerHTML=`<strong>Recommended Related Words:</strong> <br>${sortedRelated.join(', ')}`;
+    recCard.innerHTML=`<strong>Recommended Related Words:</strong><br>${sortedRelated.join(', ')}`;
     feed.appendChild(recCard);
   }
 }
