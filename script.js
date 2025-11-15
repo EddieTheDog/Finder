@@ -21,7 +21,7 @@ const userMetrics = JSON.parse(localStorage.getItem('finderMetrics')) || {
   feedback: [],
   recentSearches: [],
   relatedWords: {},
-  seenCards: new Set() // track unique cards to avoid repetition
+  seenCards: new Set()
 };
 
 // ===== Fetch Functions =====
@@ -45,7 +45,7 @@ async function fetchFunFact(){
 async function fetchDateFact(){
   const today = new Date();
   const key = `${today.getMonth()+1}-${today.getDate()}`;
-  if(userMetrics.seenCards.has(`date-${key}`)) return null; // only one per day
+  if(userMetrics.seenCards.has(`date-${key}`)) return null;
   try{
     const res = await fetch(`https://numbersapi.com/${today.getMonth()+1}/${today.getDate()}/date?json`);
     const data = await res.json();
@@ -142,7 +142,7 @@ async function displaySearchResults(query){
     card.className='card';
     card.dataset.type=res.type;
     card.innerHTML=`<p><strong>${res.type.toUpperCase()}:</strong> ${res.content}</p>`;
-    const thumbs = document.createElement('div');
+    const thumbs=document.createElement('div');
     thumbs.className='thumbs';
     const up=document.createElement('button'); up.innerText='👍';
     const down=document.createElement('button'); down.innerText='👎';
@@ -182,15 +182,20 @@ async function displayHomeFeed(){
     homeFeed.appendChild(card);
   }
 
-  // Show some definitions/fun facts based on engagement
-  const cardsToShow=5;
-  for(let i=0;i<cardsToShow;i++){
-    const type=order[i%order.length];
+  // Show 5 personalized cards
+  let cardsAdded=0;
+  let i=0;
+  while(cardsAdded<5){
+    const type=order[i % order.length];
+    i++;
     if(type==='dateFact') continue;
+
     let content='';
     if(type==='definition' && userMetrics.recentSearches.length>0){
       const recent=userMetrics.recentSearches[Math.floor(Math.random()*userMetrics.recentSearches.length)];
       content=await fetchDefinition(recent);
+    } else if(type==='definition'){
+      content=await fetchDefinition('example');
     }
     if(type==='funFact') content=await fetchFunFact();
 
@@ -198,6 +203,7 @@ async function displayHomeFeed(){
     card.className='card';
     card.dataset.type=type;
     card.innerHTML=`<p><strong>${type.toUpperCase()}:</strong> ${content}</p>`;
+
     const thumbs=document.createElement('div');
     thumbs.className='thumbs';
     const up=document.createElement('button'); up.innerText='👍';
@@ -206,11 +212,14 @@ async function displayHomeFeed(){
     down.onclick=()=>showFeedbackModal(card);
     thumbs.appendChild(up); thumbs.appendChild(down);
     card.appendChild(thumbs);
+
     homeFeed.appendChild(card);
     const startTime=Date.now();
     card.addEventListener('mouseenter',()=>startTime);
-    card.addEventListener('mouseleave',()=>updateMetrics(type,'home', (Date.now()-startTime)/1000, content));
+    card.addEventListener('mouseleave',()=>updateMetrics(type,'home',(Date.now()-startTime)/1000, content));
     updateMetrics(type,'home',0,content);
+
+    cardsAdded++;
   }
 }
 
