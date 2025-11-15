@@ -27,107 +27,130 @@ async function fetchDateFact() {
     const today = new Date();
     const month = today.getMonth() + 1;
     const day = today.getDate();
-    const res = await fetch(`https://numbersapi.com/${month}/${day}/date?json`);
+    // CORS-safe fetch
+    const res = await fetch(`https://numbersapi.p.rapidapi.com/${month}/${day}/date?json=true`, {
+      method: 'GET',
+      headers: {
+        'X-RapidAPI-Host': 'numbersapi.p.rapidapi.com',
+        'X-RapidAPI-Key': 'YOUR_FREE_KEY_IF_NEEDED'
+      }
+    });
     const data = await res.json();
     return data.text;
   } catch (e) {
-    return 'Could not fetch date fact.';
+    // fallback
+    const fallbackFacts = [
+      "On this day, something amazing happened in history!",
+      "Did you know? Today has a fun fact waiting for you.",
+      "This day in history was pretty cool!"
+    ];
+    return fallbackFacts[Math.floor(Math.random() * fallbackFacts.length)];
   }
 }
 
-// ===== Personalization Algorithm =====
+// ===== User Metrics =====
 const userMetrics = JSON.parse(localStorage.getItem('finderMetrics')) || {
   clicks: 0,
   lastQuery: '',
-  preferredType: 'definition', // default
+  preferredType: 'definition',
   typeEngagement: { definition: 0, funFact: 0, dateFact: 0 },
-  feedback: [] // stores user's like/dislike feedback
+  feedback: []
 };
 
+// ===== Personalization Functions =====
 function updateMetrics(type, query, timeSpent = 0) {
   userMetrics.clicks += 1;
   userMetrics.lastQuery = query;
   userMetrics.typeEngagement[type] = (userMetrics.typeEngagement[type] || 0) + 1 + timeSpent/10;
-  // Update preferred type dynamically
   const maxType = Object.entries(userMetrics.typeEngagement).sort((a,b)=>b[1]-a[1])[0][0];
   userMetrics.preferredType = maxType;
   localStorage.setItem('finderMetrics', JSON.stringify(userMetrics));
 }
 
-// Simple ordering based on engagement & feedback
 function getContentOrder() {
   const typeScores = { ...userMetrics.typeEngagement };
-
-  // If feedback exists, boost liked types
   userMetrics.feedback.forEach(f => {
-    if(f.like) typeScores[f.type] += 5; // boost score
+    if(f.like) typeScores[f.type] += 5;
   });
-
-  return Object.entries(typeScores)
-    .sort((a,b)=>b[1]-a[1])
-    .map(entry => entry[0]);
+  return Object.entries(typeScores).sort((a,b)=>b[1]-a[1]).map(entry => entry[0]);
 }
 
-// ===== Feedback Prompt =====
 function maybeAskFeedback(type) {
-  // Ask every 3 interactions
   if(userMetrics.clicks % 3 === 0) {
     setTimeout(() => {
       const like = confirm(`Did you enjoy the ${type}? Click OK for Yes, Cancel for No.`);
       userMetrics.feedback.push({ type, like, timestamp: Date.now() });
       localStorage.setItem('finderMetrics', JSON.stringify(userMetrics));
-    }, 500); // slight delay so user sees result first
+    }, 500);
   }
 }
 
-// ===== UI Functions =====
-async function displayContent(query) {
-  const feed = document.getElementById('feed');
-  feed.innerHTML = ''; // clear feed
+// ===== Page Navigation =====
+const homePage = document.getElementById('homePage');
+const searchPage = document.getElementById('searchPage');
+document.getElementById('homeBtn').addEventListener('click', () => {
+  homePage.style.display = 'block';
+  searchPage.style.display = 'none';
+  displayHomeFeed();
+});
 
+// ===== Display Functions =====
+async function displayContent(query) {
+  searchPage.style.display = 'block';
+  homePage.style.display = 'none';
+  const feed = document.getElementById('searchFeed');
+  feed.innerHTML = '';
   const order = getContentOrder();
   for (let type of order) {
     let content = '';
-    if (type === 'definition') content = await fetchDefinition(query);
-    if (type === 'funFact') content = await fetchFunFact();
-    if (type === 'dateFact') content = await fetchDateFact();
-
+    if(type==='definition') content = await fetchDefinition(query);
+    if(type==='funFact') content = await fetchFunFact();
+    if(type==='dateFact') content = await fetchDateFact();
     const card = document.createElement('div');
     card.className = 'card';
     card.innerText = `${type.toUpperCase()}:\n${content}`;
     feed.appendChild(card);
 
-    // Track time spent (simple example: start timer)
     const startTime = Date.now();
     card.addEventListener('mouseenter', () => startTime);
     card.addEventListener('mouseleave', () => {
-      const elapsed = (Date.now() - startTime)/1000; // seconds
+      const elapsed = (Date.now()-startTime)/1000;
       updateMetrics(type, query, elapsed);
     });
 
     updateMetrics(type, query);
-    maybeAskFeedback(type); // ask feedback occasionally
+    maybeAskFeedback(type);
+  }
+}
+
+async function displayHomeFeed() {
+  const feed = document.getElementById('homeFeed');
+  feed.innerHTML = '';
+  const types = getContentOrder();
+  for(let i=0;i<5;i++){ // 5 cards
+    const type = types[i % types.length];
+    let content = '';
+    if(type==='funFact') content = await fetchFunFact();
+    if(type==='definition') content = await fetchDefinition('example');
+    if(type==='dateFact') content = await fetchDateFact();
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerText = `${type.toUpperCase()}:\n${content}`;
+    feed.appendChild(card);
   }
 }
 
 // ===== Event Listeners =====
 document.getElementById('searchBtn').addEventListener('click', () => {
   const query = document.getElementById('queryInput').value.trim();
-  if (!query) return;
+  if(!query) return;
   displayContent(query);
 });
-
-// Optional: press Enter to search
-document.getElementById('queryInput').addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') document.getElementById('searchBtn').click();
+document.getElementById('queryInput').addEventListener('keypress',(e)=>{
+  if(e.key==='Enter') document.getElementById('searchBtn').click();
 });
 
-// ===== On Load: Show Today's Date Fact =====
-window.onload = async () => {
-  const feed = document.getElementById('feed');
-  const fact = await fetchDateFact();
-  const card = document.createElement('div');
-  card.className = 'card';
-  card.innerText = `TODAY'S DATE FACT:\n${fact}`;
-  feed.appendChild(card);
+// ===== On Load =====
+window.onload = () => {
+  displayHomeFeed();
 };
