@@ -11,12 +11,20 @@
 <body>
   <header>
     <h1>Finder</h1>
-    <input type="text" id="queryInput" placeholder="Type a word or topic..." />
-    <button id="searchBtn">Search</button>
+    <button id="homeBtn">Home</button>
   </header>
 
-  <main id="feed">
-    <!-- Cards injected here -->
+  <!-- Home page -->
+  <main id="homePage">
+    <h2>Fun Facts Feed</h2>
+    <div id="homeFeed"></div>
+  </main>
+
+  <!-- Search page -->
+  <main id="searchPage" style="display:none;">
+    <input type="text" id="queryInput" placeholder="Type a word or topic..." />
+    <button id="searchBtn">Search</button>
+    <div id="searchFeed"></div>
   </main>
 
   <script src="script.js"></script>
