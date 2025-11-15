@@ -28,14 +28,13 @@
     <div id="searchFeed"></div>
   </main>
 
+  <!-- Feedback Modal -->
+  <div id="feedbackModal" class="hidden">
+    <span id="feedbackText"></span>
+    <button id="thumbUp">👍</button>
+    <button id="thumbDown">👎</button>
+  </div>
+
   <script src="script.js"></script>
-  <script>
-    // Register service worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js')
-        .then(() => console.log('Service Worker registered'))
-        .catch(err => console.error('Service Worker failed', err));
-    }
-  </script>
 </body>
 </html>
