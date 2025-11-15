@@ -29,20 +29,38 @@ main{
   padding:10px;
 }
 
+/* ===== Search Bar ===== */
 #searchBarContainer{
+  position: sticky;
+  top: 0;
+  background:#f5f5f5;
   display:flex;
   gap:10px;
-  margin-bottom:10px;
+  padding:10px;
+  z-index:100;
+  border-bottom:1px solid #ccc;
 }
 
 #queryInput{
   flex:1;
-  padding:8px;
+  padding:10px;
   font-size:16px;
   border-radius:8px;
   border:1px solid #ccc;
 }
 
+#searchBtn{
+  padding:10px 15px;
+  font-size:16px;
+  border-radius:8px;
+}
+
+/* ===== Feed Containers ===== */
+#searchFeedContainer, #homeFeed{
+  margin-top:10px;
+}
+
+/* ===== Cards ===== */
 .card{
   background:white;
   border-radius:12px;
@@ -56,6 +74,7 @@ main{
   transform:scale(1.02);
 }
 
+/* ===== Thumbs ===== */
 .thumbs{
   display:flex;
   justify-content:flex-end;
@@ -63,6 +82,7 @@ main{
   margin-top:10px;
 }
 
+/* ===== Feedback Modal ===== */
 #feedbackModal{
   position:fixed;
   bottom:20px;
