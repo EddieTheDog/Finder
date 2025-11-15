@@ -27,9 +27,9 @@ async function fetchDateFact() {
     const today = new Date();
     const month = today.getMonth() + 1;
     const day = today.getDate();
-    const res = await fetch(`http://numbersapi.com/${month}/${day}/date`);
-    const fact = await res.text();
-    return fact;
+    const res = await fetch(`https://numbersapi.com/${month}/${day}/date?json`);
+    const data = await res.json();
+    return data.text;
   } catch (e) {
     return 'Could not fetch date fact.';
   }
@@ -40,20 +40,44 @@ const userMetrics = JSON.parse(localStorage.getItem('finderMetrics')) || {
   clicks: 0,
   lastQuery: '',
   preferredType: 'definition', // default
+  typeEngagement: { definition: 0, funFact: 0, dateFact: 0 },
+  feedback: [] // stores user's like/dislike feedback
 };
 
-function updateMetrics(type, query) {
+function updateMetrics(type, query, timeSpent = 0) {
   userMetrics.clicks += 1;
   userMetrics.lastQuery = query;
-  userMetrics.preferredType = type;
+  userMetrics.typeEngagement[type] = (userMetrics.typeEngagement[type] || 0) + 1 + timeSpent/10;
+  // Update preferred type dynamically
+  const maxType = Object.entries(userMetrics.typeEngagement).sort((a,b)=>b[1]-a[1])[0][0];
+  userMetrics.preferredType = maxType;
   localStorage.setItem('finderMetrics', JSON.stringify(userMetrics));
 }
 
-// Simple scoring algorithm: weight content types based on user preference
+// Simple ordering based on engagement & feedback
 function getContentOrder() {
-  if (userMetrics.preferredType === 'definition') return ['definition', 'funFact', 'dateFact'];
-  if (userMetrics.preferredType === 'funFact') return ['funFact', 'definition', 'dateFact'];
-  return ['dateFact', 'definition', 'funFact'];
+  const typeScores = { ...userMetrics.typeEngagement };
+
+  // If feedback exists, boost liked types
+  userMetrics.feedback.forEach(f => {
+    if(f.like) typeScores[f.type] += 5; // boost score
+  });
+
+  return Object.entries(typeScores)
+    .sort((a,b)=>b[1]-a[1])
+    .map(entry => entry[0]);
+}
+
+// ===== Feedback Prompt =====
+function maybeAskFeedback(type) {
+  // Ask every 3 interactions
+  if(userMetrics.clicks % 3 === 0) {
+    setTimeout(() => {
+      const like = confirm(`Did you enjoy the ${type}? Click OK for Yes, Cancel for No.`);
+      userMetrics.feedback.push({ type, like, timestamp: Date.now() });
+      localStorage.setItem('finderMetrics', JSON.stringify(userMetrics));
+    }, 500); // slight delay so user sees result first
+  }
 }
 
 // ===== UI Functions =====
@@ -73,7 +97,16 @@ async function displayContent(query) {
     card.innerText = `${type.toUpperCase()}:\n${content}`;
     feed.appendChild(card);
 
-    updateMetrics(type, query); // update personalization metrics
+    // Track time spent (simple example: start timer)
+    const startTime = Date.now();
+    card.addEventListener('mouseenter', () => startTime);
+    card.addEventListener('mouseleave', () => {
+      const elapsed = (Date.now() - startTime)/1000; // seconds
+      updateMetrics(type, query, elapsed);
+    });
+
+    updateMetrics(type, query);
+    maybeAskFeedback(type); // ask feedback occasionally
   }
 }
 
